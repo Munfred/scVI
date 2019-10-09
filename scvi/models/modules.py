@@ -519,9 +519,9 @@ class DecoderTOTALVI(nn.Module):
         )
 
         # mean gamma
-        self.px_scale_decoder = nn.Sequential(
-            nn.Linear(n_hidden + n_input, n_output_genes), nn.Softmax(dim=-1)
-        )
+        self.px_scale_decoder_mean = nn.Linear(n_hidden + n_input, n_output_genes)
+        self.px_scale_decoder_log_var = nn.Linear(n_hidden + n_input, n_output_genes)
+        self.px_scale_decoder = nn.Softmax(dim=-1)
 
         # background mean first decoder
         self.py_back_decoder = FCLayers(
@@ -592,7 +592,12 @@ class DecoderTOTALVI(nn.Module):
 
         px = self.px_decoder(z, *cat_list)
         px_cat_z = torch.cat([px, z], dim=-1)
-        px_["scale"] = self.px_scale_decoder(px_cat_z)
+        px_scale_mean = self.px_scale_decoder_mean(px_cat_z)
+        px_scale_var = torch.exp(self.px_scale_decoder_log_var(px_cat_z))
+        px_scale = self.px_scale_decoder(
+            Normal(px_scale_mean, px_scale_var.sqrt()).rsample()
+        )
+        px_["scale"] = self.px_scale_decoder(px_scale)
         px_["rate"] = library_gene * px_["scale"]
 
         py_back = self.py_back_decoder(z, *cat_list)
