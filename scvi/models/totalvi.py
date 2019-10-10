@@ -437,7 +437,7 @@ class TOTALVI(nn.Module):
         ).sum(dim=-1)
 
         kl_div_rho = kl(
-            Normal(px_["scale_mean"], py_["scale_var"].sqrt()), Normal(0, 1)
+            Normal(px_["scale_mean"], px_["scale_var"].sqrt()), Normal(0, 1)
         ).sum(dim=-1)
 
         return (
