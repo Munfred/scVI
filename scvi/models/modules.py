@@ -594,10 +594,9 @@ class DecoderTOTALVI(nn.Module):
         px_cat_z = torch.cat([px, z], dim=-1)
         px_["scale_mean"] = self.px_scale_decoder_mean(px_cat_z)
         px_["scale_var"] = torch.exp(self.px_scale_decoder_log_var(px_cat_z))
-        px_scale = self.px_scale_decoder(
+        px_["scale"] = self.px_scale_decoder(
             Normal(px_["scale_mean"], px_["scale_var"].sqrt()).rsample()
         )
-        px_["scale"] = self.px_scale_decoder(px_scale)
         px_["rate"] = library_gene * px_["scale"]
 
         py_back = self.py_back_decoder(z, *cat_list)
