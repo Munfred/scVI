@@ -104,6 +104,8 @@ class TOTALVI(nn.Module):
                 torch.randn(n_input_proteins)
             )
 
+        self.rho_prior_log_scale = torch.nn.Parameter(torch.randn(1))
+
         if self.gene_dispersion == "gene":
             self.px_r = torch.nn.Parameter(torch.randn(n_input_genes))
         elif self.gene_dispersion == "gene-batch":
@@ -437,7 +439,8 @@ class TOTALVI(nn.Module):
         ).sum(dim=-1)
 
         kl_div_rho = kl(
-            Normal(px_["scale_mean"], px_["scale_var"].sqrt()), Normal(0, 1)
+            Normal(px_["scale_mean"], px_["scale_var"].sqrt()),
+            Normal(0, torch.exp(self.rho_prior_log_scale)),
         ).sum(dim=-1)
 
         return (
