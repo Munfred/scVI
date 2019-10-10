@@ -438,10 +438,7 @@ class TOTALVI(nn.Module):
             Normal(py_["back_alpha"], py_["back_beta"]), self.back_mean_prior
         ).sum(dim=-1)
 
-        kl_div_rho = kl(
-            Normal(px_["scale_mean"], px_["scale_var"].sqrt()),
-            Normal(0, torch.exp(self.rho_prior_log_scale)),
-        ).sum(dim=-1)
+        kl_div_rho = 0
 
         return (
             reconst_loss_gene,
