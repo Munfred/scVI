@@ -374,18 +374,8 @@ class TOTALVI(nn.Module):
             py_back_beta_prior = torch.exp(self.background_pro_log_beta)
         self.back_mean_prior = Normal(py_back_alpha_prior, py_back_beta_prior)
 
-        pri_tril = torch.zeros(
-            self.n_input_genes, self.n_input_genes, device=qz_v.device
-        )
-        row_col = torch.tril_indices(
-            self.n_input_genes, self.n_input_genes, device=qz_v.device
-        )
-        pri_tril[row_col[0], row_col[1]] = self.rho_prior_param
-        # Make diag positive
-        diag = torch.arange(self.n_input_genes, device=qz_v.device)
-        pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
         px_, py_, log_pro_back_mean = self.decoder(
-            z, pri_tril, library_gene, batch_index, label
+            z, self.rho_prior_param, library_gene, batch_index, label
         )
         px_["r"] = px_r
         py_["r"] = py_r

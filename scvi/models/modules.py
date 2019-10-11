@@ -566,7 +566,7 @@ class DecoderTOTALVI(nn.Module):
     def forward(
         self,
         z: torch.Tensor,
-        scale_tril: torch.Tensor,
+        rho_prior_param: torch.Tensor,
         library_gene: torch.Tensor,
         *cat_list: int
     ):
@@ -596,11 +596,21 @@ class DecoderTOTALVI(nn.Module):
         px_ = {}
         py_ = {}
 
+        pri_tril = torch.zeros(self.n_input_genes, self.n_input_genes, device=z.device)
+        row_col = torch.tril_indices(
+            self.n_input_genes, self.n_input_genes, device=z.device
+        )
+        pri_tril[row_col[0], row_col[1]] = rho_prior_param
+        # Make diag positive
+        diag = torch.arange(self.n_input_genes, device=z.device)
+
+        pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
+
         px = self.px_decoder(z, *cat_list)
         px_cat_z = torch.cat([px, z], dim=-1)
         px_["scale_mean"] = self.px_scale_decoder_mean(px_cat_z)
         px_["scale"] = self.px_scale_decoder(
-            MultivariateNormal(px_["scale_mean"], scale_tril=scale_tril).rsample()
+            MultivariateNormal(px_["scale_mean"], scale_tril=pri_tril).rsample()
         )
         px_["rate"] = library_gene * px_["scale"]
 
