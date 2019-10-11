@@ -5,7 +5,7 @@ from typing import Dict, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal, kl_divergence as kl
+from torch.distributions import Normal, MultivariateNormal, kl_divergence as kl
 
 from scvi.models.log_likelihood import (
     log_zinb_positive,
@@ -104,7 +104,10 @@ class TOTALVI(nn.Module):
                 torch.randn(n_input_proteins)
             )
 
-        self.rho_prior_log_scale = torch.nn.Parameter(torch.randn(1))
+        self.rho_prior_param = nn.Parameter(
+            torch.ones(int(0.5 * (self.n_input_genes ** 2 + self.n_input_genes)))
+        )
+        self.rho_prior_mean = nn.Parameter(torch.randn(self.n_input_genes))
 
         if self.gene_dispersion == "gene":
             self.px_r = torch.nn.Parameter(torch.randn(n_input_genes))
@@ -438,7 +441,22 @@ class TOTALVI(nn.Module):
             Normal(py_["back_alpha"], py_["back_beta"]), self.back_mean_prior
         ).sum(dim=-1)
 
-        kl_div_rho = 0
+        pri_tril = torch.zeros(
+            self.n_input_genes, self.n_input_genes, device=qz_v.device
+        )
+        row_col = torch.tril_indices(
+            self.n_input_genes, self.n_input_genes, device=qz_v.device
+        )
+        pri_tril[row_col[0], row_col[1]] = self.rho_prior_param
+        # Make diag positive
+        diag = torch.arange(self.n_input_genes, device=qz_v.device)
+        pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
+
+        posterior = MultivariateNormal(
+            px_["scale_mean"], scale_tril=torch.diag_embed(px_["scale_var"].sqrt())
+        )
+        self.rho_prior = MultivariateNormal(self.rho_prio_mean, scale_tril=pri_tril)
+        kl_div_rho = torch.distributions.kl.kl_divergence(posterior, self.rho_prior)
 
         return (
             reconst_loss_gene,
