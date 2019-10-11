@@ -384,9 +384,8 @@ class TOTALVI(nn.Module):
         # Make diag positive
         diag = torch.arange(self.n_input_genes, device=qz_v.device)
         pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
-        self.pri_tril = pri_tril
         px_, py_, log_pro_back_mean = self.decoder(
-            z, self.pri_tril, library_gene, batch_index, label
+            z, pri_tril, library_gene, batch_index, label
         )
         px_["r"] = px_r
         py_["r"] = py_r
