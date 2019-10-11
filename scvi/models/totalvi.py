@@ -5,7 +5,7 @@ from typing import Dict, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal, MultivariateNormal, kl_divergence as kl
+from torch.distributions import Normal, kl_divergence as kl
 
 from scvi.models.log_likelihood import (
     log_zinb_positive,
@@ -374,7 +374,20 @@ class TOTALVI(nn.Module):
             py_back_beta_prior = torch.exp(self.background_pro_log_beta)
         self.back_mean_prior = Normal(py_back_alpha_prior, py_back_beta_prior)
 
-        px_, py_, log_pro_back_mean = self.decoder(z, library_gene, batch_index, label)
+        pri_tril = torch.zeros(
+            self.n_input_genes, self.n_input_genes, device=qz_v.device
+        )
+        row_col = torch.tril_indices(
+            self.n_input_genes, self.n_input_genes, device=qz_v.device
+        )
+        pri_tril[row_col[0], row_col[1]] = self.rho_prior_param
+        # Make diag positive
+        diag = torch.arange(self.n_input_genes, device=qz_v.device)
+        pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
+        self.pri_tril = pri_tril
+        px_, py_, log_pro_back_mean = self.decoder(
+            z, self.pri_tril, library_gene, batch_index, label
+        )
         px_["r"] = px_r
         py_["r"] = py_r
         protein_mixing = 1 / (1 + torch.exp(-py_["mixing"]))
@@ -441,22 +454,23 @@ class TOTALVI(nn.Module):
             Normal(py_["back_alpha"], py_["back_beta"]), self.back_mean_prior
         ).sum(dim=-1)
 
-        pri_tril = torch.zeros(
-            self.n_input_genes, self.n_input_genes, device=qz_v.device
-        )
-        row_col = torch.tril_indices(
-            self.n_input_genes, self.n_input_genes, device=qz_v.device
-        )
-        pri_tril[row_col[0], row_col[1]] = self.rho_prior_param
-        # Make diag positive
-        diag = torch.arange(self.n_input_genes, device=qz_v.device)
-        pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
+        # pri_tril = torch.zeros(
+        #     self.n_input_genes, self.n_input_genes, device=qz_v.device
+        # )
+        # row_col = torch.tril_indices(
+        #     self.n_input_genes, self.n_input_genes, device=qz_v.device
+        # )
+        # pri_tril[row_col[0], row_col[1]] = self.rho_prior_param
+        # # Make diag positive
+        # diag = torch.arange(self.n_input_genes, device=qz_v.device)
+        # pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
 
-        posterior = MultivariateNormal(
-            px_["scale_mean"], scale_tril=torch.diag_embed(px_["scale_var"].sqrt())
-        )
-        self.rho_prior = MultivariateNormal(self.rho_prior_mean, scale_tril=pri_tril)
-        kl_div_rho = torch.distributions.kl.kl_divergence(posterior, self.rho_prior)
+        # posterior = MultivariateNormal(
+        #     px_["scale_mean"], scale_tril=torch.diag_embed(px_["scale_var"].sqrt())
+        # )
+        # self.rho_prior = MultivariateNormal(self.rho_prior_mean, scale_tril=pri_tril)
+        # kl_div_rho = torch.distributions.kl.kl_divergence(posterior, self.rho_prior)
+        kl_div_rho = 0
 
         return (
             reconst_loss_gene,

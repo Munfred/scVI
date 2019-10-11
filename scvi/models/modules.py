@@ -3,7 +3,7 @@ from typing import Iterable, List
 
 import torch
 from torch import nn as nn
-from torch.distributions import Normal
+from torch.distributions import Normal, MultivariateNormal
 from torch.nn import ModuleList
 
 from scvi.models.utils import one_hot
@@ -563,7 +563,13 @@ class DecoderTOTALVI(nn.Module):
 
         self.py_background_decoder = nn.Linear(n_hidden + n_input, n_output_proteins)
 
-    def forward(self, z: torch.Tensor, library_gene: torch.Tensor, *cat_list: int):
+    def forward(
+        self,
+        z: torch.Tensor,
+        scale_tril: torch.Tensor,
+        library_gene: torch.Tensor,
+        *cat_list: int
+    ):
         r"""The forward computation for a single sample.
 
          #. Decodes the data from the latent space using the decoder network
@@ -593,9 +599,8 @@ class DecoderTOTALVI(nn.Module):
         px = self.px_decoder(z, *cat_list)
         px_cat_z = torch.cat([px, z], dim=-1)
         px_["scale_mean"] = self.px_scale_decoder_mean(px_cat_z)
-        px_["scale_var"] = torch.exp(self.px_scale_decoder_log_var(px_cat_z))
         px_["scale"] = self.px_scale_decoder(
-            Normal(px_["scale_mean"], px_["scale_var"].sqrt()).rsample()
+            MultivariateNormal(px_["scale_mean"], scale_tril=scale_tril).rsample()
         )
         px_["rate"] = library_gene * px_["scale"]
 
