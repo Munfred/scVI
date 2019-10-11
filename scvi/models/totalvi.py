@@ -455,7 +455,7 @@ class TOTALVI(nn.Module):
         posterior = MultivariateNormal(
             px_["scale_mean"], scale_tril=torch.diag_embed(px_["scale_var"].sqrt())
         )
-        self.rho_prior = MultivariateNormal(self.rho_prio_mean, scale_tril=pri_tril)
+        self.rho_prior = MultivariateNormal(self.rho_prior_mean, scale_tril=pri_tril)
         kl_div_rho = torch.distributions.kl.kl_divergence(posterior, self.rho_prior)
 
         return (
