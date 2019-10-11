@@ -596,13 +596,15 @@ class DecoderTOTALVI(nn.Module):
         px_ = {}
         py_ = {}
 
-        pri_tril = torch.zeros(self.n_input_genes, self.n_input_genes, device=z.device)
+        pri_tril = torch.zeros(
+            self.n_output_genes, self.n_output_genes, device=z.device
+        )
         row_col = torch.tril_indices(
-            self.n_input_genes, self.n_input_genes, device=z.device
+            self.n_output_genes, self.n_output_genes, device=z.device
         )
         pri_tril[row_col[0], row_col[1]] = rho_prior_param
         # Make diag positive
-        diag = torch.arange(self.n_input_genes, device=z.device)
+        diag = torch.arange(self.n_output_genes, device=z.device)
 
         pri_tril[diag, diag] = torch.exp(pri_tril[diag, diag])
 
