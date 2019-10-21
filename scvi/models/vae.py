@@ -98,7 +98,7 @@ class VAE(nn.Module):
         self.decoder = DecoderSCVI(
             n_latent,
             n_input,
-            n_cat_list=[n_batch],
+            n_cat_list=[n_batch, n_labels],
             n_layers=n_layers,
             n_hidden=n_hidden,
         )
