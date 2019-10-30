@@ -490,7 +490,7 @@ class GeneExpressionDataset(Dataset):
                 for gene_dataset in gene_datasets_list:
                     template = np.zeros(
                         (
-                            getattr(gene_dataset, columns_attr_name).shape[0],
+                            getattr(gene_dataset, attribute_name).shape[0],
                             len(columns_to_keep),
                         )
                     )
