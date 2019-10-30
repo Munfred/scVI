@@ -440,7 +440,7 @@ class TOTALVI(nn.Module):
 
         if self.protein_batch_mask is not None:
             pro_batch_mask_minibatch = torch.zeros_like(y)
-            for b in np.unique(batch_index):
+            for b in np.arange(self.n_batch):
                 b_indices = (batch_index == b).reshape(-1)
                 pro_batch_mask_minibatch[b_indices] = torch.tensor(
                     self.protein_batch_mask[b].astype(np.float32), device=y.device
