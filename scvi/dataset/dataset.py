@@ -506,6 +506,8 @@ class GeneExpressionDataset(Dataset):
                     if type(template) is not np.ndarray:
                         template = template.tocsr()
                     setattr(gene_dataset, attribute_name, template)
+                    # in-place modified dataset gets column names updated to be accurate
+                    setattr(gene_dataset, columns_attr_name, columns_to_keep)
 
                 for i, gene_dataset in enumerate(gene_datasets_list):
                     attribute_values.append(getattr(gene_dataset, attribute_name))
