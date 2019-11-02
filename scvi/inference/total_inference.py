@@ -7,12 +7,9 @@ from torch.utils.data import DataLoader
 import numpy as np
 import pandas as pd
 
-from scvi.inference import (
-    Posterior,
-    get_bayes_factors,
-    UnsupervisedTrainer,
-    BatchSubsetRandomSampler,
-)
+from scvi.inference import Posterior
+from . import get_bayes_factors
+from . import UnsupervisedTrainer
 
 from scvi.dataset import GeneExpressionDataset
 from scvi.models import TOTALVI
@@ -72,14 +69,6 @@ class TotalPosterior(Posterior):
                 )
             }
         )
-        if model.imputation_mode is True:
-            self.data_loader_kwargs.update(
-                {
-                    "sampler": BatchSubsetRandomSampler(
-                        indices, gene_dataset.batch_indices[indices]
-                    )
-                }
-            )
         self.data_loader = DataLoader(gene_dataset, **self.data_loader_kwargs)
 
     def corrupted(self):
