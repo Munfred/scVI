@@ -1,7 +1,6 @@
 from typing import Optional, List, Union
 
 import logging
-from itertools import cycle
 import torch
 from torch.distributions import Poisson, Gamma, Bernoulli, Normal
 from torch.utils.data import DataLoader
@@ -686,12 +685,10 @@ class TotalTrainer(UnsupervisedTrainer):
         pro_recons_weight=1.0,
         n_epochs_back_kl_warmup=200,
         n_epochs_kl_warmup=200,
-        imputation_mode=False,
         **kwargs
     ):
         self.n_genes = dataset.nb_genes
         self.n_proteins = model.n_input_proteins
-        self.imputation_mode = imputation_mode
 
         self.pro_recons_weight = pro_recons_weight
         self.n_epochs_back_kl_warmup = n_epochs_back_kl_warmup
@@ -706,80 +703,27 @@ class TotalTrainer(UnsupervisedTrainer):
             self.test_set.to_monitor = ["elbo"]
             self.validation_set.to_monitor = ["elbo"]
 
-            if self.imputation_mode is True:
-                train_inds = self.train_set.indices
-                for b in np.unique(dataset.batch_indices):
-                    new_inds = train_inds[
-                        dataset.batch_indices[train_inds].ravel() == b
-                    ]
-                    setattr(
-                        self,
-                        "train_batch_{}".format(b),
-                        self.create_posterior(
-                            model, dataset, indices=new_inds, type_class=TotalPosterior
-                        ),
-                    )
-                # this also unregisters the train_set
-                del self.train_set
-
-    @property
-    def posteriors_loop(self):
-        if self.imputation_mode is not True:
-            return ["train_set"]
-        else:
-            return [
-                "train_batch_{}".format(i) for i in range(self.gene_dataset.n_batches)
-            ]
-
-    def data_loaders_loop(self):
-        posteriors = [self._posteriors[name] for name in self.posteriors_loop]
-        # find the largest dataset to cycle over the others
-        largest = np.argmax(
-            [posterior.gene_dataset.X.shape[0] for posterior in posteriors]
+    def loss(self, tensors):
+        sample_batch_X, local_l_mean, local_l_var, batch_index, label, sample_batch_Y = (
+            tensors
+        )
+        reconst_loss_gene, reconst_loss_protein, kl_div_z, kl_div_l_gene, kl_div_back_pro = self.model(
+            sample_batch_X,
+            sample_batch_Y,
+            local_l_mean,
+            local_l_var,
+            batch_index,
+            label,
         )
 
-        data_loaders = [
-            posterior if i == largest else cycle(posterior)
-            for i, posterior in enumerate(posteriors)
-        ]
-
-        return zip(*data_loaders)
-
-    def loss(self, *tensor_list):
-
-        losses = []
-        total_batch_size = 0
-        for (
-            i,
-            (
-                sample_batch_X,
-                local_l_mean,
-                local_l_var,
-                batch_index,
-                label,
-                sample_batch_Y,
-            ),
-        ) in enumerate(tensor_list):
-            reconst_loss_gene, reconst_loss_protein, kl_div_z, kl_div_l_gene, kl_div_back_pro = self.model(
-                sample_batch_X,
-                sample_batch_Y,
-                local_l_mean,
-                local_l_var,
-                batch_index,
-                label,
-            )
-            loss = torch.mean(
-                reconst_loss_gene
-                + self.pro_recons_weight * reconst_loss_protein
-                + self.kl_weight * kl_div_z
-                + kl_div_l_gene
-                + self.back_warmup_weight * kl_div_back_pro
-            ) * sample_batch_X.size(0)
-            total_batch_size += sample_batch_X.size(0)
-            losses.append(loss)
-
-        averaged_loss = torch.stack(losses).sum() / total_batch_size
-        return averaged_loss
+        loss = torch.mean(
+            reconst_loss_gene
+            + self.pro_recons_weight * reconst_loss_protein
+            + self.kl_weight * kl_div_z
+            + kl_div_l_gene
+            + self.back_warmup_weight * kl_div_back_pro
+        )
+        return loss
 
     def on_epoch_begin(self):
         super().on_epoch_begin()
