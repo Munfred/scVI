@@ -25,7 +25,6 @@ from torch.utils.data.sampler import (
     SequentialSampler,
     SubsetRandomSampler,
     RandomSampler,
-    Sampler,
 )
 
 from scvi.dataset import GeneExpressionDataset
@@ -42,33 +41,6 @@ logger = logging.getLogger(__name__)
 class SequentialSubsetSampler(SubsetRandomSampler):
     def __iter__(self):
         return iter(self.indices)
-
-
-class BatchSubsetRandomSampler(Sampler):
-    r"""Samples elements randomly from a given list of indices, without replacement.
-
-    While random, it's random within batches (from data, not minibatches). Batches are
-    ordered one after another
-
-
-    :param indices: a sequence of indices
-    :param batches: batch index corresponding to each cell in indices
-    """
-
-    def __init__(self, indices, batches):
-        self.indices = indices
-        if len(batches.shape) == 2:
-            self.batches = batches.ravel()
-        else:
-            self.batches = batches
-
-    def __iter__(self):
-        randperm = torch.randperm(len(self.indices))
-        batch_randperm = randperm[np.argsort(self.batches[randperm])]
-        return (self.indices[i] for i in batch_randperm)
-
-    def __len__(self):
-        return len(self.indices)
 
 
 class Posterior:

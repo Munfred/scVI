@@ -77,7 +77,6 @@ class TOTALVI(nn.Module):
         reconstruction_loss_gene: str = "nb",
         latent_distribution: str = "ln",
         protein_batch_mask: List[np.ndarray] = None,
-        imputation_mode: bool = False,
         encoder_batch: bool = False,
     ):
         super().__init__()
@@ -92,7 +91,6 @@ class TOTALVI(nn.Module):
         self.protein_dispersion = protein_dispersion
         self.latent_distribution = latent_distribution
         self.protein_batch_mask = protein_batch_mask
-        self.imputation_mode = imputation_mode
 
         # parameters for prior on rate_back (background protein mean)
         if n_batch > 0:
