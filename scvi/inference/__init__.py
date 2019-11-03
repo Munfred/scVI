@@ -1,4 +1,4 @@
-from .posterior import Posterior, get_bayes_factors
+from .posterior import Posterior, get_bayes_factors, BatchSubsetRandomSampler
 from .trainer import Trainer
 from .inference import UnsupervisedTrainer, AdapterTrainer
 from .annotation import (
@@ -23,4 +23,5 @@ __all__ = [
     "TotalPosterior",
     "TotalTrainer",
     "get_bayes_factors",
+    "BatchSubsetRandomSampler",
 ]
