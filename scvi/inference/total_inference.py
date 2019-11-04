@@ -731,7 +731,7 @@ class TotalTrainer(UnsupervisedTrainer):
                 )
             loss /= 2
         else:
-            loss += torch.mean(
+            loss = torch.mean(
                 reconst_loss_gene
                 + self.pro_recons_weight * reconst_loss_protein
                 + self.kl_weight * kl_div_z
