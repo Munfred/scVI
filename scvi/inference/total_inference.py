@@ -487,51 +487,50 @@ class TotalPosterior(Posterior):
 
         return scale_list_gene, scale_list_pro
 
+    @torch.no_grad()
+    def get_protein_mean(
+        self,
+        n_samples: int = 1,
+        give_mean: bool = True,
+        transform_batch: Optional[int] = None,
+    ):
+        """Returns the tensors of protein mean (with foreground and background)
 
-@torch.no_grad()
-def get_protein_mean(
-    self,
-    n_samples: int = 1,
-    give_mean: bool = True,
-    transform_batch: Optional[int] = None,
-):
-    """Returns the tensors of protein mean (with foreground and background)
+        :param n_samples: number of samples from posterior distribution
+        :param give_mean: bool, whether to return samples along first axis or average over samples
+        :rtype: :py:class:`np.ndarray`
+        """
 
-    :param n_samples: number of samples from posterior distribution
-    :param give_mean: bool, whether to return samples along first axis or average over samples
-    :rtype: :py:class:`np.ndarray`
-    """
+        rate_list_pro = []
+        for tensors in self:
+            x, _, _, batch_index, label, y = tensors
+            outputs = self.model.inference(
+                x,
+                y,
+                batch_index=batch_index,
+                label=label,
+                n_samples=n_samples,
+                transform_batch=transform_batch,
+            )
+            py_ = outputs["py_"]
+            pi = 1 / (1 + torch.exp(-py_["mixing"]))
+            protein_rate = py_["rate_fore"] * (1 - pi) + py_["rate_back"] * pi
+            rate_list_pro.append(protein_rate.cpu())
 
-    rate_list_pro = []
-    for tensors in self:
-        x, _, _, batch_index, label, y = tensors
-        outputs = self.model.inference(
-            x,
-            y,
-            batch_index=batch_index,
-            label=label,
-            n_samples=n_samples,
-            transform_batch=transform_batch,
-        )
-        py_ = outputs["py_"]
-        pi = 1 / (1 + torch.exp(-py_["mixing"]))
-        protein_rate = py_["rate_fore"] * (1 - pi) + py_["rate_back"] * pi
-        rate_list_pro.append(protein_rate.cpu())
+        if n_samples > 1:
+            # concatenate along batch dimension -> result shape = (samples, cells, features)
+            rate_list_pro = torch.cat(rate_list_pro, dim=1)
+            # (cells, features, samples)
+            rate_list_pro = rate_list_pro.permute(1, 2, 0)
+        else:
+            rate_list_pro = torch.cat(rate_list_pro, dim=0)
 
-    if n_samples > 1:
-        # concatenate along batch dimension -> result shape = (samples, cells, features)
-        rate_list_pro = torch.cat(rate_list_pro, dim=1)
-        # (cells, features, samples)
-        rate_list_pro = rate_list_pro.permute(1, 2, 0)
-    else:
-        rate_list_pro = torch.cat(rate_list_pro, dim=0)
+        if give_mean is True and n_samples > 1:
+            rate_list_pro = torch.mean(rate_list_pro, dim=-1)
 
-    if give_mean is True and n_samples > 1:
-        rate_list_pro = torch.mean(rate_list_pro, dim=-1)
+        rate_list_pro = rate_list_pro.cpu().numpy()
 
-    rate_list_pro = rate_list_pro.cpu().numpy()
-
-    return rate_list_pro
+        return rate_list_pro
 
     @torch.no_grad()
     def imputation(self, n_samples: int = 1):
