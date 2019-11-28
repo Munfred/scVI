@@ -519,9 +519,7 @@ class DecoderTOTALVI(nn.Module):
         )
 
         # mean gamma
-        self.px_scale_decoder = nn.Sequential(
-            nn.Linear(n_hidden + n_input, n_output_genes), nn.Softmax(dim=-1)
-        )
+        self.px_scale_decoder = nn.Softmax(dim=-1)
 
         # background mean first decoder
         self.py_back_decoder = FCLayers(
@@ -532,9 +530,6 @@ class DecoderTOTALVI(nn.Module):
             n_hidden=n_hidden,
             dropout_rate=dropout_rate,
         )
-        # background mean parameters second decoder
-        self.py_back_mean_log_alpha = nn.Linear(n_hidden + n_input, n_output_proteins)
-        self.py_back_mean_log_beta = nn.Linear(n_hidden + n_input, n_output_proteins)
 
         # foreground increment decoder step 1
         self.py_fore_decoder = FCLayers(
@@ -546,9 +541,7 @@ class DecoderTOTALVI(nn.Module):
             dropout_rate=dropout_rate,
         )
         # foreground increment decoder step 2
-        self.py_fore_scale_decoder = nn.Sequential(
-            nn.Linear(n_hidden + n_input, n_output_proteins), nn.ReLU()
-        )
+        self.py_fore_scale_decoder = nn.ReLU()
 
         # dropout (mixture component for proteins, ZI probability for genes)
         self.sigmoid_decoder = FCLayers(
@@ -562,6 +555,10 @@ class DecoderTOTALVI(nn.Module):
         self.px_dropout_decoder_gene = nn.Linear(n_hidden + n_input, n_output_genes)
 
         self.py_background_decoder = nn.Linear(n_hidden + n_input, n_output_proteins)
+
+        self.pxy_linear_output = nn.Linear(
+            3 * n_hidden + n_input, n_output_genes + 3 * n_output_proteins
+        )
 
     def forward(self, z: torch.Tensor, library_gene: torch.Tensor, *cat_list: int):
         r"""The forward computation for a single sample.
@@ -591,21 +588,31 @@ class DecoderTOTALVI(nn.Module):
         py_ = {}
 
         px = self.px_decoder(z, *cat_list)
-        px_cat_z = torch.cat([px, z], dim=-1)
-        px_["scale"] = self.px_scale_decoder(px_cat_z)
+        py_back = self.py_back_decoder(z, *cat_list)
+        py_fore = self.py_fore_decoder(z, *cat_list)
+
+        pxy_cat_z = self.pxy_linear_output(torch.cat([px, py_back, py_fore, z], dim=-1))
+
+        px_["scale"] = self.px_scale_decoder(pxy_cat_z[..., : self.n_output_genes])
         px_["rate"] = library_gene * px_["scale"]
 
-        py_back = self.py_back_decoder(z, *cat_list)
-        py_back_cat_z = torch.cat([py_back, z], dim=-1)
-
-        py_["back_alpha"] = self.py_back_mean_log_alpha(py_back_cat_z)
-        py_["back_beta"] = torch.exp(self.py_back_mean_log_beta(py_back_cat_z))
+        py_["back_alpha"] = pxy_cat_z[
+            ..., self.n_output_genes : self.n_output_genes + self.n_output_proteins
+        ]
+        py_["back_beta"] = torch.exp(
+            pxy_cat_z[
+                ...,
+                self.n_output_genes
+                + self.n_output_proteins : self.n_output_genes
+                + 2 * self.n_output_proteins,
+            ]
+        )
         log_pro_back_mean = Normal(py_["back_alpha"], py_["back_beta"]).rsample()
         py_["rate_back"] = torch.exp(log_pro_back_mean)
 
-        py_fore = self.py_fore_decoder(z, *cat_list)
-        py_fore_cat_z = torch.cat([py_fore, z], dim=-1)
-        py_["fore_scale"] = self.py_fore_scale_decoder(py_fore_cat_z) + 1
+        py_["fore_scale"] = (
+            self.py_fore_scale_decoder(pxy_cat_z[..., -self.n_output_proteins :]) + 1
+        )
         py_["rate_fore"] = py_["rate_back"] * py_["fore_scale"]
 
         p_mixing = self.sigmoid_decoder(z, *cat_list)
