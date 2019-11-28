@@ -871,8 +871,8 @@ class TotalTrainer(UnsupervisedTrainer):
         train_size=0.90,
         test_size=0.05,
         pro_recons_weight=1.0,
-        n_epochs_back_kl_warmup=200,
-        n_epochs_kl_warmup=200,
+        n_iter_back_kl_warmup=7800,
+        n_iter_kl_warmup=7800,
         imputation_mode=False,
         **kwargs
     ):
@@ -881,10 +881,8 @@ class TotalTrainer(UnsupervisedTrainer):
         self.imputation_mode = imputation_mode
 
         self.pro_recons_weight = pro_recons_weight
-        self.n_epochs_back_kl_warmup = n_epochs_back_kl_warmup
-        super().__init__(
-            model, dataset, n_epochs_kl_warmup=n_epochs_kl_warmup, **kwargs
-        )
+        self.n_iter_back_kl_warmup = n_iter_back_kl_warmup
+        super().__init__(model, dataset, n_iter_kl_warmup=n_iter_kl_warmup, **kwargs)
         if type(self) is TotalTrainer:
             (
                 self.train_set,
@@ -930,7 +928,7 @@ class TotalTrainer(UnsupervisedTrainer):
                     + self.pro_recons_weight * reconst_loss_protein[inds]
                     + self.kl_weight * kl_div_z[inds]
                     + kl_div_l_gene[inds]
-                    + self.back_warmup_weight * kl_div_back_pro[inds]
+                    + self.kl_back_warmup_weight * kl_div_back_pro[inds]
                 )
             loss /= 2
         else:
@@ -939,13 +937,15 @@ class TotalTrainer(UnsupervisedTrainer):
                 + self.pro_recons_weight * reconst_loss_protein
                 + self.kl_weight * kl_div_z
                 + kl_div_l_gene
-                + self.back_warmup_weight * kl_div_back_pro
+                + self.kl_back_warmup_weight * kl_div_back_pro
             )
         return loss
 
-    def on_epoch_begin(self):
-        super().on_epoch_begin()
-        if self.n_epochs_back_kl_warmup is not None:
-            self.back_warmup_weight = min(1, self.epoch / self.n_epochs_back_kl_warmup)
+    @property
+    def kl_back_warmup_weight(self):
+        iter_criterium = self.n_iter_back_kl_warmup is not None
+        if iter_criterium:
+            kl_back_warmup_weight = min(1.0, self.n_iter / self.n_iter_back_kl_warmup)
         else:
-            self.back_warmup_weight = 1.0
+            kl_back_warmup_weight = 1.0
+        return kl_back_warmup_weight
