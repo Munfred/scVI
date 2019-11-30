@@ -557,7 +557,7 @@ class DecoderTOTALVI(nn.Module):
         self.py_background_decoder = nn.Linear(n_hidden + n_input, n_output_proteins)
 
         self.pxy_linear_output = nn.Linear(
-            3 * n_hidden + n_input, n_output_genes + 3 * n_output_proteins
+            n_hidden + n_input, n_output_genes + 3 * n_output_proteins
         )
 
     def forward(self, z: torch.Tensor, library_gene: torch.Tensor, *cat_list: int):
@@ -587,11 +587,9 @@ class DecoderTOTALVI(nn.Module):
         px_ = {}
         py_ = {}
 
-        px = self.px_decoder(z, *cat_list)
-        py_back = self.py_back_decoder(z, *cat_list)
-        py_fore = self.py_fore_decoder(z, *cat_list)
+        pxy = self.px_decoder(z, *cat_list)
 
-        pxy_cat_z = self.pxy_linear_output(torch.cat([px, py_back, py_fore, z], dim=-1))
+        pxy_cat_z = self.pxy_linear_output(torch.cat([pxy, z], dim=-1))
 
         px_["scale"] = self.px_scale_decoder(pxy_cat_z[..., : self.n_output_genes])
         px_["rate"] = library_gene * px_["scale"]
